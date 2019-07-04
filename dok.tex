@@ -1,0 +1,91 @@
+\documentclass[12pt]{article}
+\usepackage[utf8]{inputenc}
+\usepackage{polski}
+\usepackage{latexsym}
+\usepackage[top=0.5in]{geometry}
+\usepackage{enumerate}
+\usepackage{ gensymb }
+
+\date{}
+\title{Projekt}
+\author{Agnieszka Pawicka}
+\frenchspacing
+\begin{document}
+\thispagestyle{empty}
+\maketitle
+\section{Jak używać}
+\\\indent W archiwum znajduje się dołączony plik run.sh. Aby otworzyć program jako użytkownik init należy wpisać komendę ,,./run.sh  - -init'' . Następnie aby połączyć się z bazą: \\ \{ "open": \{ "database": "student", "login": "init", "password": "qwerty" \}\}. Później poprawne są jedynie wywołania funkcji leader, np.: \\ \{ "leader": \{ "timestamp": 1557473000, "password": "abc", "member": 1\}\}.
+\\\indent Aby otworzyć program jako użytkownik app należy wpisać komendę \\,,./run.sh  - -app ''. Następnie aby połączyć się z bazą: \{ "open": \{ "database": "student", "login": "app", "password": "qwerty"\}\}. Od teraz poprawne są wywołania definiowane w poleceniu projektu, np.\\ \{ "support": \{ "timestamp": 1557475701, "password": "123", "member": 3, "action":600, "project":5000\}\}\\
+\{ "trolls": \{ "timestamp": 1557477055 \}\}
+
+\section{Opis}
+\\Baza składa się z pięciu tabel:
+\begin{enumerate}
+\item members(id, cryptpwd, leader, lastactivity, upvotes, downvotes), gdzie:
+\begin{itemize}
+\item id - identyfikator użytkownika
+\item cryptpwd - hasło zakodowane przy pomocy funkcji crypt z modułu pgcrypto (md5)
+\item leader - true lub false
+\item lastactivity - timestamp
+\item upvotes, downvotes - wartości opisane w funkji trolls
+\end{itemize}
+\item actions(id, memberid, projectid, action, time)  - action przyjmuje wartości 's' (support), 'p' (protest)
+\item votes(memberid, actionid, vote, time) - vote przyjmuje wartości 'u' (upvote), 'd' (downvote)
+\item project(id, authority, creationtime)
+\item ID - zawierające wszystkie identyfikatory użytkowników, akcji, projektów, organów władzy
+\end{enumerate}
+
+\\\\ Użytkownik init jest na prawach SUPERUSER, użytkownik app może wykonywać działania typu SELECT, INSERT, UPDATE.
+\\Implementacja poszczególnych funkcji API:
+\begin{itemize}
+\item support/protest  $ timestamp$ $ member$ $ password$ $ action $ $project $ $[authority] $: \begin{enumerate}
+\item sprawdzenie, czy  $member $  jest istniejącym ID członka, jeśli nie, dodawana jest nowa krotka do tabeli Member
+\item sprawdzenie, czy hasło jest poprawne i czy członek jest aktywny, jeśli nie: zwrócenie błędu
+\item sprawdzenie, czy podany projekt pojawił się wcześniej, jeśli nie pojawił się i nie podano authority lub pojawił się i podano inne authority niż poprzednio zwracany jest błąd
+\item jeśli projekt nie pojawił się wcześniej dodawana jest krotka (project, authority) do tabeli Projects
+\item dodawana jest nowa krotka do tabeli Actions o odpowiednich wartościach
+\end{enumerate}
+\item upvote/downvote  $timestamp $   $member $   $password $   $action $  :
+\begin{enumerate}
+\item sprawdzenie, czy  $member $  jest istniejącym ID członka, jeśli nie, dodawana jest nowa krotka do tabeli Member
+\item sprawdzenie, czy hasło jest poprawne i czy członek jest aktywny, jeśli nie: zwrócenie błędu
+\item sprawdzenie, czy istnieje akcja o podanym id, jeśli nie: zwracany jest błąd
+\item dodawana jest nowa krotka do tabeli Votes (jeśli jest to drugie głosowanie danego członka w tej samej akcji, to nowa krotka złamie więzy klucza głównego tabeli Votes i nie zostanie dodana)
+\end{enumerate}
+\item actions  $timestamp $   $member $   $password $  [  $type $  ] [  $project $  [ $authority $  ] \\
+votes  $timestamp $   $member $   $password $  [  $action $  ,  $project $  ]\\
+projects  $timestamp $   $member $   $password $  [ authority ]: 
+\begin{enumerate}
+\item sprawdzenie, czy  $member $  jest istniejącym ID członka będącego liderem, jeśli nie, zwracany jest błąd,
+\item sprawdzenie, czy hasło jest poprawne i czy członek jest aktywny, jeśli nie: zwrócenie błędu,
+\item wywoływana jest odpowiednia funkcja SELECT
+\end{enumerate}
+\item trolls  $timestamp $ :
+Wywoływana jest odpowiednia funkcja SELECT operująca na tabeli members. 
+\end{itemize}\\
+\\Dodatkowe funkcje ,,postgresowe'':
+\begin{itemize}
+\item wyzwalacze id\_trigger(), id\_trigger\_authority() wstawiające nowe krotki do tabeli id
+\item wyzwalacz count\_votes() zliczający głosowania na akcje danego członka partii
+\item funkcja active() sprawdzająca, czy członek partii wciąż jest aktywny
+\item funkcja action\_type() konwertująca zawartość kolumny actions.action na wartości ,,protest'', ,,support''
+\item funkcja timestamp\_cast() konwertująca unix timestamp 
+\end{itemize}
+\\Pomocnicze metody w pythonie:
+\begin{itemize}
+\item open\_connection(...) - łączy się z bazą
+\item close\_connection(...) - zamyka połączenie z bazą
+\item is\_leader(...) - sprawdza, czy dany użytkownik jest liderem
+\item is\_member(...) - sprawdza, czy w bazie jest podany użytkownik, jeśli nie ma, próbuje dodać takiego
+\item is\_active(...) - sprawdza, czy podany użytkownik jest aktywny
+\item is\_action(...) - sprawdza, czy podana akcja jest w bazie
+\item is\_projet(...) - sprawdza, czy podany projekt jest w bazie, jeśli nie, próbuje dodać
+\item create\_leader(...) - dodaje nowego lidera
+\item new\_action(...) - dodaje nową akcję
+\item new\_vote(...) - dodaje nowy głos
+\item trolls(...), votes(...), actions(...), projects(...) - wywołują odpowiednie SELECTy
+\item taken\_args\_str(...), taken\_args(...) - pomocnicze funkcje do wykrywania opcjonalnych argumentów
+\end{itemize}
+
+\end{document}
+
